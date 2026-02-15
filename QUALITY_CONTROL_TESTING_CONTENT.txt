@@ -1,0 +1,149 @@
+QUALITY CONTROL AND TESTING IN MANUFACTURING & SOFTWARE
+
+Manufacturing Quality Control Basics:
+In production of consumer goods and other products, every manufacturing stage is subjected to quality control and testing from component to final stage.
+
+If flaws are discovered at any stage, the product is either discarded or cycled back for rework and correction.
+
+Cost of Quality Assurance:
+Productivity is measured by the sum of the costs of:
+- Material costs
+- Rework costs
+- Discarded component costs
+- Quality assurance and testing costs
+
+The Tradeoff Between Quality and Cost:
+There is a critical tradeoff between quality assurance costs and manufacturing costs:
+
+1. If insufficient time is spent in quality assurance:
+   - The reject rate will be high
+   - Net cost will be high (many defects to fix)
+
+2. If inspection is thorough and all errors caught early:
+   - Inspection costs will be high
+   - Net cost may still be high (too much testing)
+
+3. Optimal Balance:
+   - Spend right amount on QA
+   - Catch most defects at right stage
+   - Minimize total cost (production + QA + rework)
+
+Quality Assurance Costs by Industry:
+Testing costs vary dramatically by industry based on consequence of failure:
+
+Low-Cost Industries (Consumer Products):
+- Testing: 2% of total cost
+- Why: Low risk if product fails
+- Example: A toy that breaks is not catastrophic
+- Customer can buy a replacement
+
+High-Cost Industries (Safety-Critical):
+- Space-ships: 80% testing cost
+- Nuclear reactors: 80% testing cost
+- Aircraft: 80% testing cost
+- Why: Failure can result in loss of life
+- Consequence: Every possible failure must be prevented
+
+Software Quality Costs:
+The biggest part of software cost includes:
+- Cost of detecting bugs
+- Cost of correcting bugs
+- Cost of designing tests to discover bugs
+- Cost of running those tests
+- Cost of bugs in production (if they escape)
+
+Key Insight: Manufacturing Cost of Software is Trivial
+- Physical manufacturing of software (copying, packaging) costs almost nothing
+- Most software cost is in development, testing, and fixing bugs
+- Unlike physical goods, the actual "production" is cheap
+- Quality matters much more than speed to manufacture
+
+Quality vs Productivity in Software:
+For software, quality and productivity are indistinguishable:
+- Why? Because the cost of a software copy is trivial
+- Producing buggy code fast costs MORE than producing quality code carefully
+- Every bug fixed costs 10-100x more than preventing it
+- Testing early saves money overall
+
+The Bug Cost Curve:
+Stage of Discovery → Cost to Fix
+1. During development: $1-5
+2. During unit testing: $5-10
+3. During system testing: $10-50
+4. After release (customer finds): $100+
+
+Why Testing Matters:
+1. Early detection = lower cost
+2. Prevents catastrophic failures
+3. Maintains reputation
+4. Reduces long-term costs
+5. Quality = reliability
+
+Software Testing vs Manufacturing Testing:
+
+Similarities:
+• Both test at multiple stages
+• Both use quality checkpoints
+• Both aim to catch defects early
+• Both have cost-quality tradeoff
+• Both reject defective products
+
+Differences:
+Manufacturing:
+- Physical product = cost to produce copy
+- Rework involves material/labor
+- Testing is percentage of production cost
+
+Software:
+- Cost to produce copy is negligible
+- Rework is mainly developer time
+- Testing is major cost driver
+- One bug can affect millions of users
+- Quality requires investment in testing
+
+Real-World Example - Airplane Software:
+Why 80% testing cost?
+• Failure = potential loss of life
+• Safety-critical systems can't have bugs
+• Multiple redundant systems
+• Extensive testing and verification
+• Simulation and real-world testing
+• Regulatory requirements
+• Documentation overhead
+
+Real-World Example - Social Media App:
+Why much lower testing cost?
+• Most failures are not catastrophic
+• Can deploy updates quickly
+• Users accept some bugs
+• Continuous deployment/fix model
+• Testing is still important but not 80%
+
+Types of Testing Costs:
+1. Planning & Design: 10-15% of testing budget
+2. Execution: 40-50% of testing budget
+3. Bug Fixing: 30-40% of testing budget
+4. Regression Testing: 10-20% of testing budget
+
+Cost Benefit of Testing:
+Investment in testing:
+- Prevents bugs reaching production (saves $100+ per bug)
+- Maintains user trust
+- Reduces support costs
+- Improves product quality
+- Enables faster iterations
+
+Quality Metrics:
+- Defect density: bugs per 1000 lines of code
+- Test coverage: percentage of code tested
+- Mean time to failure: how long before crash
+- Customer satisfaction: feedback on quality
+
+Key Takeaways:
+1. Testing is expensive but necessary investment
+2. Earlier you find bugs, cheaper they are to fix
+3. Software quality requires significant testing
+4. Quality and productivity are connected
+5. Cost of bugs exceeds cost of testing
+6. Different products need different testing levels
+7. Risk of failure determines testing investment

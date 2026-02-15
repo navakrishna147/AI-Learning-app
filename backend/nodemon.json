@@ -1,0 +1,33 @@
+{
+  "watch": [
+    ".",
+    "config",
+    "controllers",
+    "middleware",
+    "models",
+    "routes",
+    "services"
+  ],
+  "ignore": [
+    "node_modules",
+    "uploads",
+    "*.log",
+    ".git",
+    ".env*"
+  ],
+  "ext": "js,json",
+  "delay": 1000,
+  "restartable": "rs",
+  "verbose": true,
+  "exec": "node",
+  "legacyWatch": false,
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "cls || clear; echo '═══════════════════════════════════════════════════════════════════' && echo '🔄 NODEMON: Server restarting...' && echo '═══════════════════════════════════════════════════════════════════'",
+    "crash": "echo '\n❌ CRASH DETECTED: Server crashed. Waiting for file changes to restart...\n'"
+  },
+  "signal": "SIGTERM",
+  "exitcrash": false
+}

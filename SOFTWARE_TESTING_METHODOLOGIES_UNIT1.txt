@@ -1,0 +1,355 @@
+SOFTWARE TESTING METHODOLOGIES - UNIT 1: FUNDAMENTALS
+
+WHAT IS SOFTWARE TESTING?
+
+Definition:
+Software testing is the process of evaluating software to find errors and verify that it works as intended.
+
+In Simple Terms:
+Testing is like quality checking. Before a software application is released to users, we check if:
+- It does what it's supposed to do
+- It doesn't crash or break
+- It handles different situations correctly
+- It's safe to use
+- It's fast enough
+
+Real-World Analogy:
+Testing software is like test-driving a car before buying it:
+- You check if the engine starts
+- You test the brakes
+- You verify the steering works
+- You check all features function properly
+- You ensure it's safe to drive
+
+Types of Software Testing:
+
+1. UNIT TESTING
+   What: Testing individual components/functions
+   Who: Developers
+   When: During development
+   Example: Testing a login function
+   Goal: Verify each piece works correctly
+
+2. INTEGRATION TESTING
+   What: Testing how components work together
+   Who: QA team
+   When: After unit testing
+   Example: Login + Dashboard connection
+   Goal: Verify components interact properly
+
+3. SYSTEM TESTING
+   What: Testing the whole application
+   Who: QA team
+   When: After integration testing
+   Example: Full application workflow
+   Goal: Verify complete system works
+
+4. ACCEPTANCE TESTING
+   What: Testing if software meets user needs
+   Who: Users/Client
+   When: Before release
+   Example: Does it do what was requested?
+   Goal: Verify user satisfaction
+
+5. REGRESSION TESTING
+   What: Testing to ensure new changes don't break old features
+   Who: QA team
+   When: After every update
+   Example: Old features still work after update
+   Goal: Verify nothing broke
+
+Levels of Software Testing:
+
+1. WHITE BOX TESTING
+   What: Tester knows internal code structure
+   Focus: Code lines, paths, conditions
+   Goal: Verify code logic
+   Used for: Unit testing
+
+2. BLACK BOX TESTING
+   What: Tester doesn't know internal code
+   Focus: Inputs and outputs
+   Goal: Verify functionality
+   Used for: System, acceptance testing
+
+3. GREY BOX TESTING
+   What: Combination of white box and black box
+   Focus: Some code knowledge + user perspective
+   Goal: Comprehensive testing
+   Used for: Integration testing
+
+Why is Software Testing Important?
+
+1. FIND BUGS EARLY
+   Problem: Bugs are expensive to fix later
+   Solution: Testing finds them during development
+   Benefit: Saves time and money
+
+2. ENSURE QUALITY
+   Problem: Buggy software damages reputation
+   Solution: Testing ensures quality
+   Benefit: Users trust the software
+
+3. PREVENT FAILURES
+   Problem: Software crashes harm users
+   Solution: Testing prevents errors
+   Benefit: Reliable software
+
+4. SAVE MONEY
+   Problem: Bugs in production cost more
+   Solution: Find bugs before release
+   Benefit: Reduce total costs
+
+5. MEET REQUIREMENTS
+   Problem: Software might not do what was asked
+   Solution: Testing verifies features
+   Benefit: Client satisfaction
+
+Cost of Bugs at Different Stages:
+
+Stage → Cost to Fix → Example
+Development → $1-10 → Developer fixes immediately
+Unit Testing → $10-50 → Test team identifies
+System Testing → $50-200 → Full testing needed
+Production → $1000+ → Users affected, data loss risk
+
+Key Lesson: Fix bugs as early as possible!
+
+Software Testing Methodologies:
+
+1. WATERFALL TESTING
+   Process: Plan → Test design → Execute tests
+   When to use: Fixed requirements, predictable timeline
+   Advantage: Clear structure
+   Disadvantage: Late discovery of issues
+
+2. AGILE TESTING
+   Process: Test while developing, continuous testing
+   When to use: Changing requirements, fast iterations
+   Advantage: Early bug detection
+   Disadvantage: Less documentation
+
+3. DEVOPS TESTING
+   Process: Automated testing in deployment pipeline
+   When to use: Continuous release cycle
+   Advantage: Fast feedback
+   Disadvantage: Complex setup
+
+Characteristics of Good Testing:
+
+✓ COMPREHENSIVE
+  Covers all features and scenarios
+  Tests normal and edge cases
+  Verifies error handling
+
+✓ INDEPENDENT
+  Doesn't rely on other tests
+  Can run in any order
+  Each test is self-contained
+
+✓ REPEATABLE
+  Same results every time
+  No random factors
+  Can be automated
+
+✓ SELF-CHECKING
+  Results are clear: pass or fail
+  No guessing interpretation
+  Automatic pass/fail decision
+
+✓ TIMELY
+  Tests written at right time
+  Not too early, not too late
+  Concurrent with development
+
+Testing Mistakes to Avoid:
+
+❌ Only testing happy path (everything works case)
+   → Test error cases too!
+
+❌ Testing without a plan
+   → Plan what to test first
+
+❌ Testing same thing multiple times
+   → Test different scenarios
+
+❌ Not automating repetitive tests
+   → Automation saves time
+
+❌ Waiting to test until the end
+   → Test during development
+
+Test Case Definition:
+
+A test case includes:
+- Test ID: Unique identifier
+- Description: What is being tested
+- Precondition: What must be true before test
+- Steps: Detailed actions to perform
+- Expected Result: What should happen
+- Actual Result: What actually happened
+- Status: Pass or Fail
+
+Example Test Case:
+Test ID: TC001
+Description: Test user login with valid credentials
+Precondition: Application open, user not logged in
+Steps:
+  1. Enter email: user@example.com
+  2. Enter password: correctpassword
+  3. Click Login button
+Expected Result: User logged in, dashboard displayed
+Actual Result: [Fill during testing]
+Status: [Pass/Fail]
+
+Software Testing Process:
+
+Phase 1: PLANNING
+- Understand requirements
+- Define testing scope
+- Identify resources needed
+
+Phase 2: ANALYSIS
+- Review requirements in detail
+- Identify test scenarios
+- Plan approach
+
+Phase 3: DESIGN
+- Create test cases
+- Design test data
+- Plan test environment
+
+Phase 4: EXECUTION
+- Run test cases
+- Record results
+- Log defects
+
+Phase 5: CLOSURE
+- Summarize testing
+- Report metrics
+- Lessons learned
+
+Key Testing Terms:
+
+DEFECT (Bug):
+- Deviation from expected behavior
+- Something doesn't work as designed
+- Example: Button doesn't click
+
+FAILURE:
+- When a defect causes problems to users
+- System stops working correctly
+- Example: App crashes when button clicked
+
+INCIDENT:
+- Unexpected event during testing
+- Might be bug or environment issue
+- Example: Server goes down
+
+ERROR:
+- Mistake made by developer
+- Causes defects in code
+- Example: Wrong mathematical formula
+
+VERIFICATION:
+- Did we build it right?
+- Does code match design?
+- Testing the build process
+
+VALIDATION:
+- Did we build the right thing?
+- Does software meet user needs?
+- Testing the finished product
+
+Common Testing Terminology:
+
+TEST PLAN:
+- Overall testing strategy
+- What, when, how to test
+- Who is responsible
+
+TEST CASE:
+- Individual test scenario
+- Step-by-step instructions
+- Expected vs actual results
+
+TEST SUITE:
+- Collection of related test cases
+- All tests for a feature
+- Can be executed together
+
+TEST DATA:
+- Input values for testing
+- Real-world data samples
+- Edge cases and boundaries
+
+TEST ENVIRONMENT:
+- Hardware and software where tests run
+- Operating systems, browsers
+- Databases and servers
+
+BASELINE:
+- Expected behavior
+- Reference point for comparison
+- What correct behavior looks like
+
+Root Cause Analysis:
+
+When a bug is found:
+1. REPRODUCE: Make bug happen again
+2. ISOLATE: Find exact scenario causing it
+3. ANALYZE: Understand why it happens
+4. FIX: Correct the code
+5. VERIFY: Confirm fix works
+6. PREVENT: Stop it happening again
+
+Testing in Continuous Integration:
+
+Modern software testing:
+- Automated tests run with every code change
+- Tests in pipeline before release
+- Fast feedback (minutes not days)
+- Catches issues immediately
+- Enables frequent releases
+
+Benefits:
+✓ Early bug detection
+✓ Faster development
+✓ Higher quality
+✓ Reduced manual testing
+✓ More frequent releases
+
+Summary of Key Concepts:
+
+1. Software testing finds bugs before users do
+2. Testing at right time saves money
+3. Different testing types for different purposes
+4. Good test cases are independent and repeatable
+5. Testing should be automated where possible
+6. Quality is responsibility of entire team
+7. Documentation is important
+8. Root cause analysis prevents recurring bugs
+
+Practical Example: Testing a Calculator:
+
+Feature: Addition function (2 + 3 = 5)
+
+Test Cases:
+TC1: Positive + Positive (2 + 3 = 5) ✓
+TC2: Negative + Negative (-2 + -3 = -5) ✓
+TC3: Positive + Negative (5 + -3 = 2) ✓
+TC4: Large numbers (1000 + 2000 = 3000) ✓
+TC5: Decimal numbers (2.5 + 3.5 = 6.0) ✓
+TC6: Zero (0 + 5 = 5) ✓
+TC7: Maximum value overflow check
+
+By testing all scenarios, we ensure calculator works correctly!
+
+Next Steps to Learn:
+
+- UNIT TESTING: How to test individual functions
+- INTEGRATION TESTING: How components connect
+- TEST AUTOMATION: Writing automated tests
+- TEST MANAGEMENT: Planning and organizing tests
+- PERFORMANCE TESTING: Testing speed and load
+- SECURITY TESTING: Testing safety and protection

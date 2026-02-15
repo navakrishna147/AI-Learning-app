@@ -1,0 +1,308 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global CSS Reset & Stabilization */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+}
+
+/* Prevent layout jank */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* Custom Component Classes */
+@layer components {
+  /* Cards & Containers */
+  .card {
+    @apply bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-all duration-200;
+  }
+
+  .card:hover {
+    @apply shadow-md border-gray-300;
+  }
+
+  .card-elevated {
+    @apply bg-white rounded-lg p-6 shadow-md border border-gray-200;
+  }
+
+  .container-primary {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Buttons - Primary */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+
+  .btn-primary-lg {
+    @apply inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-base;
+  }
+
+  /* Buttons - Secondary */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 active:bg-gray-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-800 font-semibold py-2 px-4 rounded-lg transition-all duration-200;
+  }
+
+  .btn-secondary-lg {
+    @apply inline-flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 active:bg-gray-400 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-800 font-semibold py-3 px-6 rounded-lg transition-all duration-200 text-base;
+  }
+
+  /* Buttons - Danger */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200;
+  }
+
+  /* Buttons - Ghost */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 bg-transparent hover:bg-gray-100 active:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all duration-200;
+  }
+
+  /* Input Fields */
+  .input {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white;
+  }
+
+  .input:disabled {
+    @apply bg-gray-100 text-gray-500 cursor-not-allowed;
+  }
+
+  .input-lg {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white text-base;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+
+  .input-success {
+    @apply border-emerald-500 focus:ring-emerald-500;
+  }
+
+  /* Select Fields */
+  .select {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white cursor-pointer appearance-none;
+  }
+
+  /* Textarea */
+  .textarea {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white resize;
+  }
+
+  /* Labels */
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-2;
+  }
+
+  .label-required::after {
+    @apply content-['*'] text-red-500 ml-1;
+  }
+
+  /* Form Group */
+  .form-group {
+    @apply mb-6;
+  }
+
+  .form-group-inline {
+    @apply flex items-center gap-4;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-emerald {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .badge-blue {
+    @apply bg-blue-100 text-blue-800;
+  }
+
+  .badge-purple {
+    @apply bg-purple-100 text-purple-800;
+  }
+
+  .badge-amber {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .badge-red {
+    @apply bg-red-100 text-red-800;
+  }
+
+  /* Alerts */
+  .alert {
+    @apply p-4 rounded-lg border;
+  }
+
+  .alert-success {
+    @apply bg-emerald-50 border-emerald-200 text-emerald-800;
+  }
+
+  .alert-error {
+    @apply bg-red-50 border-red-200 text-red-800;
+  }
+
+  .alert-warning {
+    @apply bg-amber-50 border-amber-200 text-amber-800;
+  }
+
+  .alert-info {
+    @apply bg-blue-50 border-blue-200 text-blue-800;
+  }
+
+  /* Sidebar Links */
+  .sidebar-link {
+    @apply w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-150;
+  }
+
+  .sidebar-link-active {
+    @apply w-full flex items-center gap-3 px-4 py-3 bg-emerald-100 text-emerald-700 rounded-lg font-semibold transition-all duration-150;
+  }
+
+  /* Divider */
+  .divider {
+    @apply border-t border-gray-200;
+  }
+
+  /* Grid Layouts */
+  .grid-responsive {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+  }
+
+  .grid-responsive-2 {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+  }
+
+  .grid-responsive-3 {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+
+  /* Section Headers */
+  .section-header {
+    @apply flex items-center justify-between mb-8;
+  }
+
+  .section-title {
+    @apply text-3xl font-bold text-gray-900 mb-2;
+  }
+
+  .section-subtitle {
+    @apply text-gray-600;
+  }
+
+  /* Empty States */
+  .empty-state {
+    @apply text-center py-12;
+  }
+
+  .empty-state-icon {
+    @apply w-16 h-16 text-gray-400 mx-auto mb-4;
+  }
+
+  .empty-state-title {
+    @apply text-xl font-semibold mb-2;
+  }
+
+  .empty-state-subtitle {
+    @apply text-gray-600 mb-6;
+  }
+
+  /* Loading Spinner */
+  .spinner {
+    @apply inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500;
+  }
+
+  /* Link Styles */
+  .link {
+    @apply text-emerald-600 hover:text-emerald-700 hover:underline transition-colors duration-200;
+  }
+
+  .link-subtle {
+    @apply text-gray-600 hover:text-gray-900 transition-colors duration-200;
+  }
+
+  /* Typography */
+  .heading-1 {
+    @apply text-4xl font-bold text-gray-900;
+  }
+
+  .heading-2 {
+    @apply text-3xl font-bold text-gray-900;
+  }
+
+  .heading-3 {
+    @apply text-2xl font-semibold text-gray-900;
+  }
+
+  .heading-4 {
+    @apply text-xl font-semibold text-gray-900;
+  }
+
+  .text-muted {
+    @apply text-gray-600;
+  }
+
+  .text-subtle {
+    @apply text-gray-500;
+  }
+
+  /* Utilities */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .truncate-lines {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .truncate-lines-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Disable text selection animations */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,901 @@
+═════════════════════════════════════════════════════════════════════════════════
+PHASE 1: CRITICAL PRODUCTION BLOCKING ISSUES - REFACTORING PLAN
+═════════════════════════════════════════════════════════════════════════════════
+
+Estimated Time: 4-6 hours
+Status: Starting
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #1: Fix Database Connection (Must Block Startup)
+═════════════════════════════════════════════════════════════════════════════════
+
+File: backend/config/db.js
+
+CURRENT CODE (BROKEN):
+┌─ backend/config/db.js ─────────────────────────────────────────────────────┐
+│                                                                              │
+│ export async function connectDB() {                                         │
+│   // ... connection logic ...                                              │
+│   } else {                                                                 │
+│     console.error('\n❌ All connection attempts failed!');                 │
+│     // Don't exit - allow server to start for debugging                   │
+│     return null;  ← PROBLEM: Returns null instead of throwing              │
+│   }                                                                         │
+│ }                                                                           │
+└────────────────────────────────────────────────────────────────────────────┘
+
+REFACTORED CODE:
+┌─ backend/config/db.js ─────────────────────────────────────────────────────┐
+│                                                                              │
+│ export async function connectDB(options = {}) {                             │
+│   const isDev = process.env.NODE_ENV !== 'production';                    │
+│   const allowFailure = isDev && options.allowFailure === true;            │
+│                                                                              │
+│   // ... retry logic ...                                                   │
+│                                                                              │
+│   } else {                                                                 │
+│     const error = new Error('MongoDB connection failed after all retries'); │
+│     console.error('\n❌ ' + error.message);                               │
+│                                                                              │
+│     if (allowFailure) {                                                   │
+│       console.warn('⚠️  Proceeding in development mode without database'); │
+│       return null;                                                         │
+│     }                                                                      │
+│     throw error;  ← CRITICAL: Must throw in production!                   │
+│   }                                                                        │
+│ }                                                                          │
+│                                                                             │
+│ // Optional: Health check that requires DB                                │
+│ export async function requireDatabaseConnection() {                        │
+│   const readyState = mongoose.connection.readyState;                      │
+│   if (readyState !== 1) {                                                │
+│     throw new Error('Database not connected (readyState: ' + readyState + │
+│       ') - cannot proceed');                                              │
+│   }                                                                        │
+│ }                                                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+FILE: backend/server.js (update startup)
+CURRENT:
+  connectDB().catch(err => {
+    console.error('Failed to connect to MongoDB:', err.message);
+    console.warn('Proceeding without database connection...');
+  });
+
+REFACTORED:
+  async function startServer() {
+    try {
+      // In production, this will throw if DB fails
+      // In development with --dev-mode, it continues
+      const isDev = process.env.NODE_ENV === 'development';
+      await connectDB({ allowFailure: isDev });
+      
+      server.listen(PORT, () => {
+        console.log(`✅ Server running on port ${PORT}`);
+      });
+    } catch (error) {
+      console.error('❌ CRITICAL: Cannot start server -', error.message);
+      process.exit(1);
+    }
+  }
+  
+  startServer();
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #2: Fix AI Provider Detection (Remove Dead Code)
+═════════════════════════════════════════════════════════════════════════════════
+
+File: backend/server.js, lines 26-27
+
+CURRENT CODE (WRONG):
+┌─ backend/server.js ────────────────────────────────────────────────────────┐
+│                                                                             │
+│ // Line 26-27: Still checking old providers!                             │
+│ const hasGemini = process.env.GEMINI_API_KEY && ...                       │
+│ const hasAnthropic = process.env.ANTHROPIC_API_KEY && ...                 │
+│ if (!hasGemini && !hasAnthropic) {                                       │
+│   console.warn('⚠️  No AI API key configured. ...');                     │
+│ }                                                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+REFACTORED CODE:
+┌─ backend/server.js ────────────────────────────────────────────────────────┐
+│                                                                             │
+│ // Check only Groq (our only AI provider)                                 │
+│ const hasGroqKey = process.env.GROQ_API_KEY && 
+│                    process.env.GROQ_API_KEY.length > 5;                   │
+│                                                                             │
+│ if (!hasGroqKey) {                                                        │
+│   console.warn('⚠️  GROQ_API_KEY not configured. AI features disabled.'); │
+│   console.warn('💡 Set GROQ_API_KEY in .env to enable AI chat');         │
+│ } else {                                                                  │
+│   console.log('✅ AI Service configured (Groq - llama-3.1-8b-instant)'); │
+│ }                                                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Delete lines checking GEMINI_API_KEY and ANTHROPIC_API_KEY
+  ✓ Only check GROQ_API_KEY
+  ✓ Update warning message to be clear about Groq
+  ✓ Log which model is configured
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #3: Fix CORS Configuration (Environment-Based)
+═════════════════════════════════════════════════════════════════════════════════
+
+File: backend/server.js, lines 84-91
+
+CURRENT CODE (HARDCODED):
+┌─ backend/server.js ────────────────────────────────────────────────────────┐
+│                                                                             │
+│ app.use(cors({                                                             │
+│   origin: ['http://localhost:5173', 'http://localhost:5174',             │
+│            'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],           │
+│   credentials: true,                                                      │
+│ }));                                                                       │
+│                                                                             │
+│ ← PROBLEM: Only localhost, hardcoded, not configurable                   │
+│ ← PROBLEM: Won't work in production                                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+REFACTORED CODE:
+┌─ Change 1: backend/.env add ───────────────────────────────────────────────┐
+│                                                                             │
+│ # Add line to backend/.env:                                               │
+│ CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174
+│                                                                             │
+│ # For production, environment would be:                                   │
+│ # CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com        │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Change 2: backend/server.js replace CORS ─────────────────────────────────┐
+│                                                                             │
+│ // Parse CORS origins from environment
+│ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173').
+│   split(',').
+│   map(origin => origin.trim()).
+│   filter(origin => origin.length > 0);
+│
+│ // Validate origins format
+│ corsOrigins.forEach(origin => {
+│   try {
+│     new URL(origin);
+│   } catch (e) {
+│     console.warn(`⚠️  Invalid CORS origin: ${origin}`);
+│   }
+│ });
+│
+│ // Dynamic CORS function for best security
+│ app.use(cors({
+│   origin: (origin, callback) => {
+│     // Allow requests with no origin (same-origin requests, mobile apps, curl)
+│     if (!origin || corsOrigins.includes(origin)) {
+│       callback(null, true);
+│     } else {
+│       callback(new Error(`CORS not allowed for origin: ${origin}`));
+│     }
+│   },
+│   credentials: true,
+│   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+│   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+│   exposedHeaders: ['X-Total-Count', 'Content-Length'],
+│   maxAge: 3600, // 1 hour (was 86400, too long)
+│   optionsSuccessStatus: 200
+│ }));
+└────────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Add CORS_ORIGINS to .env
+  ✓ Replace hardcoded origin array with environment-based
+  ✓ Implement dynamic origin validation
+  ✓ Test with development origins
+  ✓ Document production origins setup
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #4: Fix JWT_SECRET (Remove Fallback Defaults)
+═════════════════════════════════════════════════════════════════════════════════
+
+LOCATIONS: 3 files with fallback defaults
+  1. backend/middleware/auth.js line 35
+  2. backend/controllers/authController.js line 8
+  
+CURRENT CODE (INSECURE):
+┌─ Multiple files ───────────────────────────────────────────────────────────┐
+│                                                                             │
+│ const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+│                                                                             │
+│ ← PROBLEM: If .env missing, uses weak default                            │
+│ ← PROBLEM: Default not actually changed                                  │
+│ ← PROBLEM: Security hole                                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+REFACTORED APPROACH:
+
+Step 1: Create backend/config/secrets.js
+┌─ backend/config/secrets.js ────────────────────────────────────────────────┐
+│                                                                             │
+│ // Centralized secret management                                          │
+│ export function getJWTSecret() {                                          │
+│   const secret = process.env.JWT_SECRET;                                  │
+│   if (!secret) {                                                          │
+│     throw new Error(                                                      │
+│       'JWT_SECRET environment variable is required. ' +                  │
+│       'Set it in .env file'                                             │
+│     );                                                                   │
+│   }                                                                       │
+│   if (secret.length < 32) {                                             │
+│     throw new Error(                                                    │
+│       'JWT_SECRET must be at least 32 characters long for security'     │
+│     );                                                                  │
+│   }                                                                      │
+│   return secret;                                                         │
+│ }                                                                         │
+│                                                                             │
+│ // Other secrets centralized here too                                    │
+│ export function validateSecrets() {                                      │
+│   // This will throw if any required secret is missing                  │
+│   getJWTSecret();                                                        │
+│   // Add other secret validations as needed               │             │
+│ }                                                                         │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Step 2: Update backend/middleware/auth.js
+┌─ Remove: ──────────────────────────────────────────────────────────────────┐
+│ const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key...'   │
+└────────────────────────────────────────────────────────────────────────────┘
+┌─ Replace with: ────────────────────────────────────────────────────────────┐
+│ import { getJWTSecret } from '../config/secrets.js';                      │
+│                                                                             │
+│ export const authMiddleware = async (req, res, next) => {                │
+│   try {                                                                  │
+│     const secret = getJWTSecret();                                      │
+│     // rest of middleware...                                           │
+│   } catch (error) {                                                    │
+│     // handle secret error                                            │
+│   }                                                                   │
+│ }                                                                      │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Step 3: Update backend/controllers/authController.js
+┌─ Same pattern: use getJWTSecret() instead of fallback ────────────────────┐
+│ import { getJWTSecret } from '../config/secrets.js';                     │
+│ const secret = getJWTSecret();                                           │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Step 4: Call validation in server.js startup
+┌─ backend/server.js ────────────────────────────────────────────────────────┐
+│                                                                             │
+│ import { validateSecrets } from './config/secrets.js';                   │
+│                                                                             │
+│ async function startServer() {                                           │
+│   try {                                                                 │
+│     // Step 1: Validate all secrets first                              │
+│     validateSecrets();                                                  │
+│     console.log('✅ All required secrets configured');                 │
+│                                                                          │
+│     // Step 2: Connect to database                                     │
+│     await connectDB({ allowFailure: isDev });                         │
+│     console.log('✅ Database connected');                             │
+│                                                                          │
+│     // Step 3: Start server                                           │
+│     server.listen(PORT, () => {                                       │
+│       console.log(`✅ Server running on port ${PORT}`);              │
+│     });                                                               │
+│   } catch (error) {                                                   │
+│     console.error('❌ CRITICAL:', error.message);                    │
+│     process.exit(1);                                                 │
+│   }                                                                   │
+│ }                                                                     │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Create backend/config/secrets.js
+  ✓ Remove all fallback defaults for JWT_SECRET
+  ✓ Update middleware/auth.js
+  ✓ Update controllers/authController.js
+  ✓ Add validation to server.js startup
+  ✓ Update .env with secure JWT_SECRET (if not already set)
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #5: Create Environment Validation (Centralized)
+═════════════════════════════════════════════════════════════════════════════════
+
+NEW FILE: backend/config/validation.js
+
+┌─ backend/config/validation.js ─────────────────────────────────────────────┐
+│                                                                             │
+│ // Environment variable validation with comprehensive checks              │
+│                                                                             │
+│ export const requiredEnvVars = {                                          │
+│   // Critical (must exist)                                               │
+│   MONGODB_URI: {                                                        │
+│     required: true,                                                    │
+│     validate: (val) => {                                              │
+│       if (!val.startsWith('mongodb://') && !val.startsWith('mongodb+srv://')) {
+│         throw new Error('Invalid MongoDB URI format');                │
+│       }                                                              │
+│     },                                                               │
+│     description: 'MongoDB connection string'                        │
+│   },                                                                 │
+│                                                                       │
+│   JWT_SECRET: {                                                      │
+│     required: true,                                                │
+│     validate: (val) => {                                          │
+│       if (val.length < 32) {                                     │
+│         throw new Error('JWT_SECRET must be 32+ characters');   │
+│       }                                                          │
+│     },                                                           │
+│     description: 'Secret key for JWT signing'                  │
+│   },                                                           │
+│                                                                  │
+│   GROQ_API_KEY: {                                              │
+│     required: false, // Optional but recommended               │
+│     validate: (val) => {                                      │
+│       if (val && !val.startsWith('gsk_')) {                 │
+│         throw new Error('GROQ_API_KEY should start with gsk_');
+│       }                                                      │
+│       if (val && val.length < 20) {                        │
+│         throw new Error('GROQ_API_KEY appears too short'); │
+│       }                                                     │
+│     },                                                      │
+│     description: 'Groq AI API key for chat features'       │
+│   },                                                        │
+│                                                            │
+│   PORT: {                                                 │
+│     required: false,                                     │
+│     default: '5000',                                    │
+│     validate: (val) => {                               │
+│       const port = parseInt(val);                      │
+│       if (isNaN(port) || port < 1 || port > 65535) { │
+│         throw new Error('PORT must be 1-65535');     │
+│       }                                               │
+│     },                                                 │
+│     description: 'Server port'                        │
+│   },                                                   │
+│                                                        │
+│   NODE_ENV: {                                         │
+│     required: false,                                 │
+│     default: 'development',                         │
+│     validate: (val) => {                           │
+│       if (!['development', 'staging', 'production'].includes(val)) {
+│         throw new Error('NODE_ENV must be development, staging, or production');
+│       }                                             │
+│     },                                            │
+│     description: 'Application environment'       │
+│   },                                             │
+│                                                  │
+│   CORS_ORIGINS: {                               │
+│     required: false,                           │
+│     default: 'http://localhost:5173',         │
+│     validate: (val) => {                     │
+│       try {                                  │
+│         val.split(',').forEach(origin => { │
+│           new URL(origin.trim());         │
+│         });                               │
+│       } catch (e) {                       │
+│         throw new Error('Invalid origin URL in CORS_ORIGINS');
+│       }                                    │
+│     },                                     │
+│     description: 'Comma-separated CORS origins'
+│   }                                        │
+│ };                                         │
+│                                            │
+│ export function validateEnvironment() { │
+│   const errors = [];                    │
+│   const config = {};                    │
+│                                         │
+│   Object.entries(requiredEnvVars).forEach(([key, rules]) => {
+│     const value = process.env[key] || rules.default;
+│                                         │
+│     if (!value && rules.required) {    │
+│       errors.push(`Missing required: ${key} - ${rules.description}`);
+│     }                                   │
+│                                         │
+│     if (value && rules.validate) {    │
+│       try {                           │
+│         rules.validate(value);       │
+│       } catch (e) {                 │
+│         errors.push(`Invalid ${key}: ${e.message}`);
+│       }                             │
+│     }                               │
+│                                     │
+│     config[key] = value;           │
+│   });                              │
+│                                   │
+│   if (errors.length > 0) {       │
+│     console.error('❌ Environment validation failed:');
+│     errors.forEach(err => console.error('  - ' + err));
+│     throw new Error('Invalid environment configuration');
+│   }                             │
+│                               │
+│   return config;             │
+│ }                           │
+│                             │
+│ export function printConfig() {
+│   const config = validateEnvironment();
+│   console.log('\n📋 Configuration:');
+│   Object.entries(config).forEach(([key, val]) => {
+│     // Don't print secrets  │
+│     if (key.includes('SECRET') || key.includes('KEY')) {
+│       console.log(`  ${key}: ••••••••••••`);
+│     } else {                 │
+│       console.log(`  ${key}: ${val}`);
+│     }                       │
+│   });                       │
+│   console.log('');         │
+│ }                         │
+└────────────────────────────────────────────────────────────────────────────┘
+
+UPDATE: backend/server.js startup
+┌─ Add to startup sequence ──────────────────────────────────────────────────┐
+│                                                                             │
+│ import { validateEnvironment, printConfig } from './config/validation.js'; │
+│                                                                             │
+│ async function startServer() {                                           │
+│   try {                                                                 │
+│     // Step 1: Validate environment variables                         │
+│     const config = validateEnvironment();                            │
+│     printConfig();                                                  │
+│     console.log('✅ Environment validated');                       │
+│                                                                     │
+│     // Step 2-4: Continue with other validations...             │
+│   } catch (error) {                                              │
+│     console.error('❌ CRITICAL:', error.message);              │
+│     process.exit(1);                                           │
+│   }                                                             │
+│ }                                                               │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Create backend/config/validation.js
+  ✓ Define all environment variables
+  ✓ Add validation rules
+  ✓ Implement validateEnvironment()
+  ✓ Call from server.js startup
+  ✓ Test all error cases
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #6: Fix Frontend Vite Proxy Dependency (Production Ready)
+═════════════════════════════════════════════════════════════════════════════════
+
+PROBLEM:
+  - Vite proxy only works in development
+  - Built app has no proxy, can't reach /api endpoints
+  - Production app will fail immediately
+  - CORS becomes necessary for production
+
+SOLUTION: Remove Vite proxy, use configured backend URL
+
+Step 1: Update frontend/.env.example and backend .env
+┌─ frontend/.env ─────────────────────────────────────────────────────────┐
+│                                                                          │
+│ # Frontend API Configuration                                           │
+│ VITE_API_BASE_URL=/api                                                │
+│ VITE_API_TIMEOUT=30000                                               │
+│ VITE_DEBUG_MODE=true                                                 │
+│                                                                         │
+│ # Backend URL (for production or non-localhost deployments)           │
+│ VITE_BACKEND_URL=http://localhost:5000                               │
+└────────────────────────────────────────────────────────────────────────┘
+
+Step 2: Update frontend/vite.config.js (REMOVE PROXY)
+┌─ Remove proxy configuration ────────────────────────────────────────────┐
+│                                                                         │
+│ // DELETE THIS ENTIRE SECTION:                                        │
+│ // proxy: {                                                          │
+│ //   '/api': {                                                       │
+│ //     target: backendUrl,                                          │
+│ //     ...                                                          │
+│ //   }                                                             │
+│ // }                                                               │
+│                                                                      │
+│ // Keep only:                                                       │
+│ server: {                                                           │
+│   port: 5173,                                                      │
+│   strictPort: true, // Changed from false                         │
+│   hmr: {                                                          │
+│     host: 'localhost',                                           │
+│     port: 5173                                                  │
+│   }                                                             │
+│ }                                                                 │
+└────────────────────────────────────────────────────────────────────────┘
+
+Step 3: Create frontend/config/api.js
+┌─ frontend/config/api.js ────────────────────────────────────────────────┐
+│                                                                          │
+│ export const API_CONFIG = {                                            │
+│   // Base URL for all API requests                                    │
+│   baseURL: getApiBaseUrl(),                                          │
+│                                                                        │
+│   // Request timeout in milliseconds                                 │
+│   timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),  │
+│                                                                        │
+│   // Debug mode                                                      │
+│   debug: import.meta.env.VITE_DEBUG_MODE === 'true',               │
+│ };                                                                    │
+│                                                                        │
+│ function getApiBaseUrl() {                                           │
+│   // At build time, VITE_ variables are replaced                    │
+│   const backendUrl = import.meta.env.VITE_BACKEND_URL;             │
+│   const apiPath = import.meta.env.VITE_API_BASE_URL || '/api';    │
+│                                                                       │
+│   if (!backendUrl || backendUrl.includes('localhost')) {          │
+│     // Development: use relative URL or Vite dev server           │
+│     console.log('[API] Using relative API path:', apiPath);      │
+│     return apiPath;                                               │
+│   }                                                               │
+│                                                                 │
+│   // Production: use full URL                                 │
+│   const fullUrl = backendUrl + apiPath;                       │
+│   console.log('[API] Using backend URL:', fullUrl);         │
+│   return fullUrl;                                           │
+│ }                                                           │
+└────────────────────────────────────────────────────────────────────────┘
+
+Step 4: Update frontend/src/services/api.js
+┌─ Change: ──────────────────────────────────────────────────────────────┐
+│                                                                        │
+│ // FROM:                                                             │
+│ const instance = axios.create({                                    │
+│   baseURL: '/api',                                               │
+│ });                                                              │
+│                                                                    │
+│ // TO:                                                            │
+│ import { API_CONFIG } from '../config/api.js';                 │
+│                                                                    │
+│ const instance = axios.create({                                 │
+│   baseURL: API_CONFIG.baseURL,                                │
+│   timeout: API_CONFIG.timeout,                               │
+│ });                                                             │
+│                                                                 │
+│ if (API_CONFIG.debug) {                                       │
+│   console.log('[API] Configured with:', API_CONFIG);        │
+│ }                                                             │
+└────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Delete Vite proxy configuration
+  ✓ Create frontend/config/api.js
+  ✓ Update frontend/src/services/api.js
+  ✓ Update frontend/.env
+  ✓ Test in development (with relative path)
+  ✓ Test in production (with full URL)
+  ✓ Document environment setup
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #7: Clean Up Backup/Duplicate Files
+═════════════════════════════════════════════════════════════════════════════════
+
+FILES TO DELETE:
+  ❌ backend/controllers/chatController.FIXED.js
+  ❌ backend/controllers/chatController.NEW.js
+
+Verification:
+  1. Check that chatController.js is the active version
+  2. No other imports reference .FIXED or .NEW files
+  3. Delete both files
+
+COMMAND:
+  del backend\controllers\chatController.FIXED.js
+  del backend\controllers\chatController.NEW.js
+
+ACTION ITEMS:
+  ✓ Verify no code references these files
+  ✓ Delete backup files
+  ✓ Commit clean codebase
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #8: Fix ES Module Imports (server.js)
+═════════════════════════════════════════════════════════════════════════════════
+
+LOCATION: backend/server.js (health check endpoint around line 161)
+
+CURRENT CODE (WRONG):
+┌─ backend/server.js ────────────────────────────────────────────────────┐
+│                                                                          │
+│ app.get('/api/health', (req, res) => {                                 │
+│   try {                                                               │
+│     const mongoose = require('mongoose');  // ← WRONG in ES modules   │
+│     const dbConnected = mongoose.connection.readyState === 1;       │
+│   }                                                                   │
+│ });                                                                   │
+└────────────────────────────────────────────────────────────────────────┘
+
+SOLUTION: Import at top, use consistently
+
+┌─ Change: At top of backend/server.js (update existing imports) ────────┐
+│                                                                         │
+│ // Make sure mongoose is imported at top:                            │
+│ import mongoose from 'mongoose';  // Add if not present             │
+│                                                                      │
+│ // Then in health check endpoint:                                   │
+│ app.get('/api/health', (req, res) => {                             │
+│   try {                                                            │
+│     const dbConnected = mongoose.connection.readyState === 1;    │
+│     // No require() needed!                                     │
+│   }                                                             │
+│ });                                                             │
+└────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Review health check endpoint
+  ✓ Ensure mongoose imported at top
+  ✓ Remove require() call
+  ✓ Run server and test health endpoint
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #9: Port Management (Centralized)
+═════════════════════════════════════════════════════════════════════════════════
+
+CURRENT STATUS:
+  ✓ Backend: PORT in .env = 5000
+  ✓ Frontend: Port in vite.config.js = 5173
+  ⚠️  Frontend .env doesn't have VITE_FRONTEND_PORT
+  ⚠️  Communication between them not documented
+
+SOLUTION: Document port configuration
+
+┌─ backend/.env ─────────────────────────────────────────────────────────┐
+│                                                                         │
+│ # Backend Configuration                                               │
+│ PORT=5000                  # Backend HTTP port                       │
+│ NODE_ENV=development       # development, staging, production       │
+│ MONGODB_URI=mongodb://localhost:27017/lmsproject                    │
+│ JWT_SECRET=your-secret-key-min-32-characters               │
+│ GROQ_API_KEY=gsk_...                                               │
+│ CORS_ORIGINS=http://localhost:5173,http://localhost:5174          │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ frontend/.env ────────────────────────────────────────────────────────┐
+│                                                                         │
+│ # Frontend Configuration                                              │
+│ VITE_BACKEND_URL=http://localhost:5000    # Backend server URL      │
+│ VITE_API_BASE_URL=/api                    # API path prefix        │
+│ VITE_API_TIMEOUT=30000                    # Request timeout (ms)   │
+│ VITE_DEBUG_MODE=true                      # Enable debug logging   │
+│                                                                       │
+│ # Note: Frontend port is controlled by vite.config.js = 5173       │
+└────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Update backend/.env with comments
+  ✓ Update frontend/.env with comments
+  ✓ Document in README
+  ✓ Verify both ports are available before startup
+  ✓ Add port conflict detection to startup script
+
+
+═════════════════════════════════════════════════════════════════════════════════
+ISSUE #10: Email Configuration (Consolidated Logic)
+═════════════════════════════════════════════════════════════════════════════════
+
+CURRENT: Validation scattered in server.js lines 36-64
+
+SOLUTION: Create backend/config/email.js
+
+┌─ NEW FILE: backend/config/email.js ────────────────────────────────────┐
+│                                                                         │
+│ // Email service configuration and validation                        │
+│                                                                       │
+│ export const EMAIL_CONFIG = {                                       │
+│   enabled: isEmailConfigured(),                                    │
+│   user: process.env.EMAIL_USER || '',                            │
+│   password: process.env.EMAIL_PASSWORD || '',                   │
+│   host: process.env.EMAIL_HOST || 'smtp.gmail.com',            │
+│   port: parseInt(process.env.EMAIL_PORT || '587'),             │
+│   secure: process.env.EMAIL_SECURE === 'true',                │
+│ };                                                              │
+│                                                                  │
+│ export function isEmailConfigured() {                          │
+│   const user = process.env.EMAIL_USER;                        │
+│   if (!user) return false;                                    │
+│                                                                │
+│   // Check if it's a placeholder                             │
+│   return !isPlaceholder(user) &&                            │
+│          process.env.EMAIL_PASSWORD &&               │          !isPlaceholder(process.env.EMAIL_PASSWORD);
+│ }                                                            │
+│                                                             │
+│ function isPlaceholder(value) {                           │
+│   if (!value) return true;                               │
+│   const lower = value.toLowerCase();                     │
+│   return lower.includes('your-email') ||               │
+│          lower.includes('placeholder') ||              │
+│          lower.includes('example') ||                 │
+│          lower === 'email@gmail.com';                │
+│ }                                                        │
+│                                                          │
+│ export function validateEmailConfig() {                │
+│   if (!isEmailConfigured()) {                         │
+│     console.warn(                                    │
+│       '⚠️  Email service not configured. ' +        │
+│       'Password reset feature disabled. ' +        │
+│       'Set EMAIL_USER and EMAIL_PASSWORD in .env' │
+│     );                                            │
+│     return false;                                │
+│   }                                              │
+│   return true;                                  │
+│ }                                               │
+│                                                 │
+│ export function getEmailTransporter() {       │
+│   if (!isEmailConfigured()) {                │
+│     return null;                           │
+│   }                                          │
+│                                              │
+│   // Return Nodemailer transporter config  │
+│   return {                                 │
+│     host: EMAIL_CONFIG.host,             │
+│     port: EMAIL_CONFIG.port,             │
+│     secure: EMAIL_CONFIG.secure,         │
+│     auth: {                              │
+│       user: EMAIL_CONFIG.user,          │
+│       pass: EMAIL_CONFIG.password       │
+│     }                                   │
+│   };                                    │
+│ }                                       │
+└────────────────────────────────────────────────────────────────────────┘
+
+UPDATE: backend/server.js startup
+┌─ Change: ──────────────────────────────────────────────────────────────┐
+│                                                                         │
+│ import { validateEmailConfig } from './config/email.js';            │
+│                                                                       │
+│ async function startServer() {                                      │
+│   try {                                                            │
+│     // ... other validations ...                                │
+│     validateEmailConfig();  // Will warn if not configured    │
+│   }                                                         │
+│ }                                                            │
+└────────────────────────────────────────────────────────────────────────┘
+
+ACTION ITEMS:
+  ✓ Create backend/config/email.js
+  ✓ Move validation logic there
+  ✓ Remove validation from server.js
+  ✓ Update emailService.js to use new config
+  ✓ Update authController to use validated config
+  ✓ Test with/without email configuration
+
+
+═════════════════════════════════════════════════════════════════════════════════
+PHASE 1 COMPLETION CHECKLIST
+═════════════════════════════════════════════════════════════════════════════════
+
+DATABASE CONNECTION:
+  ☐ Updated backend/config/db.js to block startup in production
+  ☐ Added NODE_ENV check for development fallback
+  ☐ Added setTimeout/await handling
+  ☐ Modified server.js to call async startServer()
+  ☐ Test: Server exits if MongoDB not available in production
+  ☐ Test: Server starts in development without MongoDB (with warning)
+
+AI PROVIDER:
+  ☐ Removed GEMINI_API_KEY checks from server.js
+  ☐ Removed ANTHROPIC_API_KEY checks from server.js
+  ☐ Only checking GROQ_API_KEY now
+  ☐ Updated warning messages to mention Groq llama-3.1-8b-instant
+  ☐ Test: Server runs without GROQ_API_KEY (feature disabled)
+  ☐ Test: Chat endpoint returns error if Groq not configured
+
+CORS:
+  ☐ Added CORS_ORIGINS to .env
+  ☐ Created dynamic CORS validation function
+  ☐ Replaced hardcoded origins array
+  ☐ Added URL validation for each origin
+  ☐ Updated maxAge to 1 hour
+  ☐ Test: localhost:5173 requests work
+  ☐ Test: Invalid origins are rejected
+  ☐ Test: /api endpoints accessible from frontend
+
+JWT:
+  ☐ Created backend/config/secrets.js
+  ☐ Implemented getJWTSecret() with validation
+  ☐ Implemented validateSecrets() function
+  ☐ Updated middleware/auth.js to use getJWTSecret()
+  ☐ Updated controllers/authController.js to use getJWTSecret()
+  ☐ Removed all fallback default values
+  ☐ Test: Server exits if JWT_SECRET missing
+  ☐ Test: Server exits if JWT_SECRET too short
+  ☐ Test: Login works with proper secret
+
+ENVIRONMENT VALIDATION:
+  ☐ Created backend/config/validation.js
+  ☐ Defined all required variables with rules
+  ☐ Implemented validateEnvironment() function
+  ☐ Implemented printConfig() for startup logging
+  ☐ Updated server.js to call validation at startup
+  ☐ Test: Server exits if MONGODB_URI invalid format
+  ☐ Test: Server exits if JWT_SECRET missing
+  ☐ Test: Server warns if GROQ_API_KEY missing
+  ☐ Test: Server logs validated configuration (no secrets)
+
+FRONTEND VITE PROXY:
+  ☐ Removed proxy configuration from vite.config.js
+  ☐ Created frontend/config/api.js with configuration
+  ☐ Updated frontend/src/services/api.js to use config
+  ☐ Updated frontend/.env with backend URL
+  ☐ Test: Development with relative /api path works
+  ☐ Test: Built app with full backend URL works
+  ☐ Test: CORS requests succeed
+  ☐ Test: API calls reach correct endpoint
+
+BACKUP FILES:
+  ☐ Deleted backend/controllers/chatController.FIXED.js
+  ☐ Deleted backend/controllers/chatController.NEW.js
+  ☐ Verified no code references deleted files
+  ☐ Test: App runs without backup files
+
+ES MODULES:
+  ☐ Removed require() from health check endpoint
+  ☐ Imported mongoose at top of server.js
+  ☐ All imports use ES6 syntax
+  ☐ Test: Server starts without errors
+  ☐ Test: Health check endpoint works
+
+PORT MANAGEMENT:
+  ☐ Documented backend port in .env
+  ☐ Documented frontend port in .env comments
+  ☐ Frontend config knows backend port
+  ☐ Test: Backend runs on port 5000
+  ☐ Test: Frontend runs on port 5173
+  ☐ Test: Frontend can reach backend
+
+EMAIL:
+  ☐ Created backend/config/email.js
+  ☐ Moved validation logic to email.js
+  ☐ Updated server.js to use new config
+  ☐ Test: Email feature disabled if not configured
+  ☐ Test: Password reset shows proper error if email not configured
+  ☐ Test: Email works if properly configured
+
+
+INTEGRATION TESTS:
+  ☐ Full startup sequence completes successfully
+  ☐ All configuration validated at startup
+  ☐ Health checks return proper status
+  ☐ Frontend can communicate with backend
+  ☐ Authentication works end-to-end
+  ☐ Database operations work
+  ☐ AI chat works if Groq configured
+  ☐ AI chat returns error if Groq not configured
+
+DOCUMENTATION:
+  ☐ Created backend/.env.example
+  ☐ Created frontend/.env.example
+  ☐ Updated README with environment setup
+  ☐ Added comments to configuration files
+  ☐ Documented production deployment steps
+
+
+═════════════════════════════════════════════════════════════════════════════════
+PHASE 1 SUMMARY
+═════════════════════════════════════════════════════════════════════════════════
+
+All 12 critical issues will be resolved by completing this phase.
+
+Expected outcomes:
+  ✅ Backend won't start without proper configuration
+  ✅ Frontend works in both development and production
+  ✅ CORS configured for any environment
+  ✅ Secrets properly validated
+  ✅ Environment configuration centralized and validated
+  ✅ No dead code (backup files deleted)
+  ✅ Proper ES module usage
+  ✅ Port configuration clear and documented
+
+After Phase 1 completion:
+  - Project becomes "production-ready" on critical fronts
+  - Server can be deployed to different environments
+  - Configuration is validated at startup
+  - Error messages are clear and actionable
+  - No silent failures possible
+
+═════════════════════════════════════════════════════════════════════════════════

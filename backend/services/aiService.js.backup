@@ -1,0 +1,646 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Initialize Gemini client
+let genAI = null;
+let initialized = false;
+
+const initializeGeminiClient = () => {
+  try {
+    if (initialized && genAI) {
+      return genAI;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not defined in environment variables');
+    }
+
+    genAI = new GoogleGenerativeAI(apiKey);
+    initialized = true;
+    
+    console.log('✅ Gemini Client initialized successfully');
+    console.log(`📊 Using model: gemini-1.5-flash`);
+    console.log(`🔑 API Key detected: ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 5)}`);
+
+    return genAI;
+  } catch (error) {
+    console.error('❌ Failed to initialize Gemini client:', error.message);
+    initialized = false;
+    genAI = null;
+    throw error;
+  }
+};
+
+// Lazy initialization
+const getGeminiClient = () => {
+  if (!initialized) {
+    console.log('🔄 Initializing Gemini client on first use...');
+    try {
+      return initializeGeminiClient();
+    } catch (error) {
+      console.error('⚠️ Failed to initialize Gemini client on demand:', error.message);
+      return null;
+    }
+  }
+  return genAI;
+};
+
+/**
+ * Chat with Gemini using document context
+ * Returns the full response
+ */
+export const chatWithGemini = async (messages, systemPrompt) => {
+  try {
+    const client = getGeminiClient();
+    if (!client) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      console.error('FATAL: Gemini client not initialized');
+      console.error('Check: GEMINI_API_KEY in .env file');
+      console.error('Value present:', apiKey ? 'YES' : 'NO - MISSING');
+      throw new Error('FATAL_ERROR: GEMINI_API_KEY missing or invalid. Add to .env file.');
+    }
+
+    console.log('Calling REAL Gemini API...');
+    console.log('Messages:', messages.length);
+    console.log('Model: gemini-1.5-flash');
+    console.log('System prompt length:', systemPrompt.length);
+    
+    // Get the Gemini model
+    const model = client.getGenerativeModel({ 
+      model: 'gemini-1.5-flash',
+      systemInstruction: systemPrompt
+    });
+
+    // Prepare chat history - format for Gemini
+    const history = messages.slice(0, -1).map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Start chat session
+    const chat = model.startChat({
+      history: history,
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.7,
+      }
+    });
+
+    // Send the last message
+    const userMessage = messages[messages.length - 1].content;
+    console.log('📤 Sending message to Gemini...');
+    const response = await chat.sendMessage(userMessage);
+    const assistantMessage = response.response.text();
+
+    console.log(`✅ SUCCESS: Gemini API responded`);
+    console.log(`Response length: ${assistantMessage.length} chars`);
+
+    if (!assistantMessage || assistantMessage.trim() === '') {
+      throw new Error('Empty response from Gemini API');
+    }
+
+    return assistantMessage;
+  } catch (error) {
+    console.error('Gemini API Error:', error.message);
+    console.error('📊 Error type:', error.constructor.name);
+    console.error('🔍 Full error:', error);
+    
+    const errorMessage = error.message || '';
+    const errorStatus = error.status || error.statusCode || 0;
+    
+    // Handle specific error cases
+    if (errorStatus === 429 || errorMessage.includes('quota')) {
+      console.error('⏱️ RATE LIMITED');
+      const error_obj = new Error('RATE_LIMITED');
+      error_obj.statusCode = 429;
+      error_obj.message = 'Gemini API Rate Limited: Too many requests. Please try again in a moment.';
+      throw error_obj;
+    }
+    
+    if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
+      console.error('🔐 AUTH ERROR');
+      throw new Error(`🔐 API Key Error: Invalid or missing Gemini API key. Please verify GEMINI_API_KEY in .env file.`);
+    }
+    
+    if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+      console.error('⏱️ TIMEOUT');
+      throw new Error(`⏱️ Timeout Error: The Gemini AI service took too long to respond. Try again in a moment.`);
+    }
+    
+    if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
+      console.error('🌐 NETWORK ERROR');
+      throw new Error(`🌐 Network Error: Unable to reach the Gemini AI service. Check your internet connection.`);
+    }
+
+    // Generic error
+    console.error('❌ Generic API Error');
+    throw new Error(`Gemini Service Error: ${errorMessage || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Generate system prompt for document-based chat - BEGINNER LEVEL EXPLANATIONS
+ */
+export const generateSystemPrompt = (documentTitle, documentContent) => {
+  const contentPreview = documentContent.substring(0, 100000);
+  const wordCount = documentContent.split(/\s+/).length;
+
+  return `YOU ARE AN EXPERT BEGINNER-LEVEL TEACHER
+
+Your Role: Teach the provided document content to someone learning it for the FIRST TIME.
+Assume the student knows NOTHING about this topic.
+
+DOCUMENT TO TEACH FROM:
+Title: ${documentTitle}
+Word Count: ~${wordCount} words
+
+CONTENT:
+${contentPreview}
+${documentContent.length > 100000 ? '\n[...continues...]' : ''}
+
+=========================================
+CRITICAL RULES FOR ALL RESPONSES:
+=========================================
+
+1. BEGINNER-LEVEL ALWAYS
+   - Use simplest possible words
+   - Define technical terms before using them
+   - Assume ZERO prior knowledge
+   - Compare to everyday examples
+
+2. STRUCTURED RESPONSES
+   - Start: One clear sentence answer
+   - Middle: 2-3 key points (bullet style)
+   - Example: One simple real-world example
+   - End: Why it matters
+
+3. SIMPLE FORMAT:
+   
+   **Simple Answer:** [Direct answer in 1-2 sentences]
+   
+   **Key Points:**
+   • What it means
+   • Why it's important
+   • How it relates to real life
+   
+   **Example:** [Real-world example]
+   
+   **Why It Matters:** [Usefulness]
+
+4. SOURCE REQUIREMENT
+   - Always cite the document
+   - Say: "In this document..." or "From our study material..."
+   - Never add external information
+
+5. TONE
+   - Be friendly and encouraging
+   - Use "We're learning..." not "You should know..."
+   - Build confidence
+
+NEVER generate demo responses. Always answer from the DOCUMENT ONLY.`;
+};
+
+/**
+ * Generate summary of document
+ */
+export const generateDocumentSummary = async (content, title) => {
+  try {
+    if (!content || content.trim().length === 0) {
+      throw new Error('Document content is empty');
+    }
+
+    console.log(`📝 Generating summary for: "${title}"`);
+
+    const systemPrompt = `Create a concise 2-3 paragraph summary of the document.`;
+
+    const summary = await chatWithGemini(
+      [
+        {
+          role: 'user',
+          content: `Summarize this document titled "${title}":\n\n${content.substring(0, 50000)}`
+        }
+      ],
+      systemPrompt
+    );
+
+    console.log(`✅ Summary generated (${summary.length} chars)`);
+    return summary;
+  } catch (error) {
+    console.error('❌ Summary generation error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Generate questions from document
+ */
+export const generateDocumentQuestions = async (content, title, count = 5) => {
+  try {
+    if (!content || content.trim().length === 0) {
+      throw new Error('Document content is empty');
+    }
+
+    console.log(`❓ Generating ${count} questions for: "${title}"`);
+
+    const systemPrompt = `Generate ${count} clear study questions based on the document.
+Format: Number. Question text
+One question per line.`;
+
+    const questionsText = await chatWithGemini(
+      [
+        {
+          role: 'user',
+          content: `Generate ${count} study questions for "${title}":\n\n${content.substring(0, 50000)}`
+        }
+      ],
+      systemPrompt
+    );
+
+    const questions = questionsText
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => line.replace(/^\d+\.\s*/, '').trim())
+      .filter(q => q.length > 0);
+
+    console.log(`✅ Generated ${questions.length} questions`);
+    return questions;
+  } catch (error) {
+    console.error('❌ Question generation error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Generate answer to a question about document
+ */
+export const generateAnswer = async (documentContent, question, title) => {
+  try {
+    if (!documentContent || documentContent.trim().length === 0) {
+      throw new Error('Document content is empty');
+    }
+    if (!question || question.trim().length === 0) {
+      throw new Error('Question is empty');
+    }
+
+    console.log(`💡 Answering question about: "${title}"`);
+    console.log(`❓ Question: ${question.substring(0, 100)}`);
+
+    const systemPrompt = generateSystemPrompt(title, documentContent);
+
+    const answer = await chatWithGemini(
+      [
+        {
+          role: 'user',
+          content: question
+        }
+      ],
+      systemPrompt
+    );
+
+    if (!answer || answer.trim().length === 0) {
+      throw new Error('No answer generated');
+    }
+
+    console.log(`✅ Answer generated (${answer.length} chars)`);
+    return answer;
+  } catch (error) {
+    console.error('❌ Answer generation error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Extract key concepts from document
+ */
+export const extractKeyConcepts = async (content, title) => {
+  try {
+    if (!content || content.trim().length === 0) {
+      throw new Error('Document content is empty');
+    }
+
+    console.log(`🔑 Extracting key concepts from: "${title}"`);
+
+    const systemPrompt = `Extract key concepts from the document.
+Format: "1. Concept name: brief definition"
+One per line.`;
+
+    const conceptsText = await chatWithGemini(
+      [
+        {
+          role: 'user',
+          content: `Extract key concepts from "${title}":\n\n${content.substring(0, 50000)}`
+        }
+      ],
+      systemPrompt
+    );
+
+    const concepts = conceptsText
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const match = line.match(/^\d+\.\s*(.+)/);
+        return match ? match[1].trim() : line.trim();
+      })
+      .filter(c => c.length > 0);
+
+    console.log(`✅ Extracted ${concepts.length} concepts`);
+    return concepts;
+  } catch (error) {
+    console.error('❌ Concept extraction error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get API status
+ */
+export const getAPIStatus = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  return {
+    available: !!apiKey && apiKey !== '',
+    provider: 'Google Gemini',
+    model: 'gemini-1.5-flash',
+    key_present: !!apiKey
+  };
+};
+
+export default {
+  chatWithGemini,
+  generateSystemPrompt,
+  generateDocumentSummary,
+  generateDocumentQuestions,
+  generateAnswer,
+  extractKeyConcepts,
+  getAPIStatus,
+  getGeminiClient,
+  isAPIKeyAvailable,
+  chatWithClaudeStream: chatWithGemini,
+  chatWithClaude: chatWithGemini
+};
+  try {
+    const client = getAnthropicClient();
+    if (!client) {
+      throw new Error('Anthropic client is not initialized. Please check your ANTHROPIC_API_KEY in .env file');
+    }
+
+    console.log('📤 Initiating Claude API stream call...');
+    
+    const stream = await client.messages.stream({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+    });
+
+    let fullResponse = '';
+    console.log('✅ Stream initiated successfully');
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        const text = chunk.delta.text;
+        fullResponse += text;
+        if (onChunk) {
+          onChunk(text);
+        }
+      }
+    }
+
+    console.log('✅ Stream completed, response length:', fullResponse.length);
+    return fullResponse;
+  } catch (error) {
+    console.error('❌ Claude Streaming API Error:', error.message);
+    console.error('📊 Full error:', error);
+    
+    // Provide specific error messages
+    if (error.message.includes('authentication')) {
+      throw new Error(`Authentication Failed: Invalid API key or authentication method. ${error.message}`);
+    } else if (error.message.includes('timeout')) {
+      throw new Error(`Request Timeout: The AI service took too long to respond. Please try again.`);
+    } else if (error.message.includes('rate_limit')) {
+      throw new Error(`Rate Limited: Too many requests. Please wait a moment and try again.`);
+    }
+    
+    throw new Error(`AI Service Error: ${error.message}`);
+  }
+};
+
+/**
+ * Chat with Claude (non-streaming)
+ */
+export const chatWithClaude = async (messages, systemPrompt) => {
+  try {
+    const client = getAnthropicClient();
+    if (!client) {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      console.error('FATAL: Anthropic client not initialized');
+      console.error('Check: ANTHROPIC_API_KEY in .env file');
+      console.error('Value present:', apiKey ? 'YES (first 20 chars: ' + apiKey.substring(0, 20) + ')' : 'NO - MISSING');
+      throw new Error('FATAL_ERROR: ANTHROPIC_API_KEY missing or invalid. Add to .env file.');
+    }
+
+    console.log('Calling REAL Claude API...');
+    console.log('Messages:', messages.length);
+    console.log('Model: claude-3-5-sonnet-20241022');
+    
+    const response = await client.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+    });
+
+    console.log('SUCCESS: Real API responded');
+    console.log('Tokens used - Input: ' + response.usage.input_tokens + ', Output: ' + response.usage.output_tokens);
+
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Claude API');
+    }
+
+    return response.content[0].type === 'text' ? response.content[0].text : '';
+  } catch (error) {
+    console.error('Claude API Error:', error.message);
+    console.error('📊 Error type:', error.constructor.name);
+    console.error('� Error status:', error.status);
+    console.error('🔍 Full error:', error);
+    
+    const errorMessage = error.message || '';
+    const errorStatus = error.status || error.statusCode || 0;
+    
+    // ONLY treat as rate limit (429) if actual HTTP 429 with specific rate/quota keywords
+    // This prevents false positives where "quota" appears in unrelated error messages
+    if (errorStatus === 429) {
+      const isRateLimitError = errorMessage.includes('rate_limit') || 
+                               errorMessage.includes('requests_per_minute') ||
+                               errorMessage.includes('quota_exceeded') ||
+                               errorMessage.includes('tokens_per_minute');
+      
+      if (isRateLimitError) {
+        console.error('⏱️ RATE LIMITED - 429');
+        const error_obj = new Error('RATE_LIMITED');
+        error_obj.statusCode = 429;
+        error_obj.message = 'API Rate Limited: Too many requests. Please wait a moment and try again.';
+        throw error_obj;
+      }
+    }
+    
+    // Check for insufficient credits error - ONLY with specific keywords AND high status codes
+    if ((errorStatus === 429 || errorStatus === 400) && 
+        (errorMessage.includes('insufficient_quota') ||
+         errorMessage.includes('Your account exceeded') ||
+         errorMessage.includes('credit balance'))) {
+      console.error('💳 INSUFFICIENT API CREDITS DETECTED');
+      const error_obj = new Error('INSUFFICIENT_CREDITS');
+      error_obj.creditError = true;
+      error_obj.statusCode = 429;
+      error_obj.message = 'API Credits Low: Anthropic API account has insufficient credits. Please purchase more credits.';
+      throw error_obj;
+    }
+    
+    // 400 Bad Request - could include invalid API key or other issues
+    if (errorStatus === 400 && errorMessage.includes('API key')) {
+      throw new Error(`🔐 API Key Error: Invalid API key or authentication failed. Please verify ANTHROPIC_API_KEY in .env file.`);
+    }
+    
+    // 401 Unauthorized
+    if (errorStatus === 401 || errorMessage.includes('unauthorized') || errorMessage.includes('authentication')) {
+      throw new Error(`🔐 Authentication Error: Invalid or expired API key. Please verify ANTHROPIC_API_KEY in .env file is correct.`);
+    }
+    
+    // 403 Forbidden / Permission Denied
+    if (errorStatus === 403 || errorMessage.includes('permission_denied')) {
+      throw new Error(`🚫 Permission Denied: API key may have insufficient permissions or has been revoked.`);
+    }
+    
+    // 404 Not Found
+    if (errorStatus === 404) {
+      throw new Error(`❌ Model Not Found: The requested Claude model is not available or has been deprecated.`);
+    }
+    
+    // Timeout errors
+    if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+      throw new Error(`⏱️ Timeout Error: The AI service took too long to respond. Try again in a moment.`);
+    }
+    
+    // Network errors
+    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ECONNRESET') || errorMessage.includes('network')) {
+      throw new Error(`🌐 Network Error: Unable to reach the AI service. Check your internet connection and try again.`);
+    }
+    
+    // Anthropic client not initialized
+    if (errorMessage.includes('Anthropic client is not initialized')) {
+      throw new Error(`❌ AI Service Unavailable: Anthropic client failed to initialize. Check API key configuration.`);
+    }
+    
+    // API Key not configured
+    if (errorMessage.includes('ANTHROPIC_API_KEY') || errorMessage.includes('apiKey')) {
+      throw new Error(`🔑 Configuration Error: ANTHROPIC_API_KEY is missing or not properly configured in .env file.`);
+    }
+    
+    // Generic error with proper formatting
+    throw new Error(`AI Service Error: ${errorMessage || 'Unknown error occurred'}. Please check backend logs for details.`);
+  }
+};
+
+/**
+ * Get API status
+ */
+export const getAPIStatus = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  return {
+    available: !!apiKey && apiKey !== '',
+    provider: 'Google Gemini',
+    model: 'gemini-1.5-flash',
+    key_present: !!apiKey
+  };
+};
+
+/**
+ * Validate API key availability
+ */
+export const isAPIKeyAvailable = () => {
+  const key = process.env.GEMINI_API_KEY;
+  return key && key !== 'placeholder-key' && key.length > 0;
+};
+
+export default {
+  chatWithGemini,
+  generateSystemPrompt,
+  generateDocumentSummary,
+  generateDocumentQuestions,
+  generateAnswer,
+  extractKeyConcepts,
+  getAPIStatus,
+  getGeminiClient,
+  chatWithClaudeStream: chatWithGemini,
+  chatWithClaude: chatWithGemini
+};
+
+/**
+ * Generate educational fallback response (when API is unavailable)
+ * This provides a basic explanation for demo/testing purposes
+ */
+export const generateFallbackEducationalResponse = (question, documentContent, documentTitle) => {
+  console.log('📚 Generating educational fallback response...');
+  
+  // Extract key information from document for fallback response
+  const lines = documentContent.split('\n').filter(line => line.trim().length > 0);
+  const relevantLines = lines.slice(0, 10).join(' ');
+  
+  const fallbackResponse = `
+🎓 **Educational Response** (Demo Mode - API Credits Unavailable)
+
+Based on the document "${documentTitle}", here's a beginner-friendly explanation:
+
+📖 **Simple Explanation:**
+The document contains important learning material about this topic. Here are the key points:
+
+✓ **Main Concept**: This document covers fundamental concepts that all learners should understand.
+
+✓ **Why It Matters**: Understanding these basics helps build a strong foundation for advanced topics.
+
+✓ **Simple Breakdown**:
+- Point 1: Start with the basics
+- Point 2: Build your understanding step by step
+- Point 3: Practice and apply what you learn
+
+💡 **Key Takeaway**: Focus on understanding one concept at a time. Don't rush. Every expert was once a beginner!
+
+📌 **Next Steps**: 
+1. Re-read the relevant sections
+2. Take notes on key points
+3. Create flashcards for practice
+4. Test yourself with quizzes
+
+⚠️ **Note**: This is a demo response. For full AI-powered explanations, please upgrade your API credits.
+  `;
+  
+  return fallbackResponse.trim();
+};
+
+/**
+ * Validate API key availability
+ */
+export const isAPIKeyAvailable = () => {
+  const key = process.env.GEMINI_API_KEY;
+  return key && key !== 'placeholder-key' && key.length > 0;
+};
+
+export default {
+  chatWithGemini,
+  generateSystemPrompt,
+  generateDocumentSummary,
+  generateDocumentQuestions,
+  generateAnswer,
+  extractKeyConcepts,
+  getAPIStatus,
+  getGeminiClient,
+  chatWithClaudeStream: chatWithGemini,
+  chatWithClaude: chatWithGemini
+};
